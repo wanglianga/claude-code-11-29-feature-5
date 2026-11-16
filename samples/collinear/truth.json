@@ -16,6 +16,7 @@
       "y": 500.0,
       "hearing_radius_m": 1900.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -34,6 +35,7 @@
       "y": 500.0,
       "hearing_radius_m": 1900.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -52,6 +54,7 @@
       "y": 500.0,
       "hearing_radius_m": 1900.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -70,6 +73,7 @@
       "y": 500.0,
       "hearing_radius_m": 1900.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -339,6 +343,7 @@
       "upload_s": 328.41097216482973,
       "declare_through_ref_s": 254.824629,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -1438,6 +1443,7 @@
       "upload_s": 358.77391904142377,
       "declare_through_ref_s": 253.321284,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -2537,6 +2543,7 @@
       "upload_s": 425.1627812059864,
       "declare_through_ref_s": 367.223777,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -3142,6 +3149,7 @@
       "upload_s": 467.47920390794184,
       "declare_through_ref_s": 422.122124,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -3747,6 +3755,7 @@
       "upload_s": 2351.030356,
       "declare_through_ref_s": 2351.030356,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 43,
@@ -4462,6 +4471,7 @@
       "upload_s": 2351.6098469999997,
       "declare_through_ref_s": 2351.6098469999997,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 43,
@@ -5177,6 +5187,7 @@
       "upload_s": 2352.3773,
       "declare_through_ref_s": 2352.3773,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 24,
@@ -5554,6 +5565,7 @@
       "upload_s": 2353.200232,
       "declare_through_ref_s": 2353.200232,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 24,
@@ -5934,5 +5946,6 @@
       820.0
     ],
     "note": "every event must expose at least two feasible regions"
-  }
+  },
+  "analysis": null
 }

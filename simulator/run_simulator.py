@@ -90,6 +90,10 @@ def build_truth(scn: Scenario) -> dict:
                 d = math.hypot(st.x - cal.x, st.y - cal.y)
                 if d > st.radius:
                     continue
+                if not st.online_at(emission_s):
+                    # Recorder off (night shutdown/failure): nothing is
+                    # recorded, whether or not the gap has been declared yet.
+                    continue
                 boot = st.boot_at(emission_s)
                 arrival_us = int(round(emission_us + d / SPEED_MPS * 1_000_000.0))
                 noisy_us = int(round(arrival_us + rng.gauss(0.0, scn.anchor_noise_ms * 1000.0)))
@@ -116,6 +120,8 @@ def build_truth(scn: Scenario) -> dict:
             for st in scn.stations:
                 d = math.hypot(st.x - source.x, st.y - source.y)
                 if d > st.radius:
+                    continue
+                if not st.online_at(emission_s):
                     continue
                 heard.append(st.id)
                 boot = st.boot_at(emission_s)
@@ -223,7 +229,49 @@ def build_waves(scn: Scenario, truth: dict) -> list[dict]:
                     }
                 )
     waves.sort(key=lambda w: (w["upload_s"], w["station_id"], w["phase"]))
+    _attach_declared_gaps(scn, truth, waves)
     return waves
+
+
+def _attach_declared_gaps(scn: Scenario, truth: dict, waves: list[dict]) -> None:
+    """Declare offline intervals as coverage gaps in the final wave's progress.
+
+    A station with ``online_windows_s`` was off during the complement of those
+    windows.  Unless ``gaps_late`` is set, its last upload wave declares the
+    gaps (station-local readings, like every progress field); with
+    ``gaps_late`` the failure is silent and the gaps only arrive through a
+    separate late progress report driven by the analysis demo.
+    """
+    for st in scn.stations:
+        if st.online_windows_s is None or st.gaps_late:
+            continue
+        boot_waves = [w for w in waves if w["station_id"] == st.id]
+        if not boot_waves:
+            continue
+        final = next((w for w in reversed(boot_waves) if w["declare_complete"]), None)
+        if final is None:
+            continue
+        boot = next(b for b in st.boots if b.boot_id == final["boot_id"])
+        first_ref_s = min(
+            (r["arrival_us"] - us(REFERENCE_EPOCH)) / 1e6
+            for r in truth["rows"]
+            if r["station_id"] == st.id
+        )
+        gaps = []
+        for gap_start_s, gap_end_s in st.offline_gaps_s(first_ref_s, final["declare_through_ref_s"]):
+            gaps.append(
+                {
+                    "from_local_at": local_iso(
+                        boot.local_us(us(REFERENCE_EPOCH + timedelta(seconds=gap_start_s)))
+                    ),
+                    "through_local_at": local_iso(
+                        boot.local_us(us(REFERENCE_EPOCH + timedelta(seconds=gap_end_s)))
+                    ),
+                    "reason": "scheduled recorder shutdown (offline interval)",
+                }
+            )
+        if gaps:
+            final["gaps"] = gaps
 
 
 def _max_ref_s(rows: list[dict]) -> float:
@@ -247,6 +295,7 @@ def write_ground_truth(scn: Scenario, out_dir: Path) -> dict:
                 "y": s.y,
                 "hearing_radius_m": s.radius,
                 "late": s.late,
+                "online_windows_s": s.online_windows_s,
                 "boots": [b.truth() for b in s.boots],
             }
             for s in scn.stations
@@ -284,6 +333,7 @@ def write_ground_truth(scn: Scenario, out_dir: Path) -> dict:
                 "upload_s": w["upload_s"],
                 "declare_through_ref_s": w["declare_through_ref_s"],
                 "declare_complete": w["declare_complete"],
+                "gaps": w.get("gaps") or [],
                 "records": [to_api_record(r) for r in w["records"]],
                 "truth": [
                     {
@@ -301,6 +351,7 @@ def write_ground_truth(scn: Scenario, out_dir: Path) -> dict:
             for w in waves
         ],
         "expected": scn.expected,
+        "analysis": scn.analysis,
     }
     (out_dir / "truth.json").write_text(json.dumps(truth_json, indent=2, default=str))
     return {"truth": truth_json, "waves": waves, "raw": truth}
@@ -383,7 +434,7 @@ class Api:
             progress = {
                 "complete_through_local_at": local_iso(local_through),
                 "complete": wave["declare_complete"],
-                "gaps": [],
+                "gaps": wave.get("gaps") or [],
             }
         body = {
             "station_id": wave["station_id"],

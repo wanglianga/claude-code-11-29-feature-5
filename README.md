@@ -35,6 +35,12 @@
 | 处理中断从同一输入截止点继续，输出不混用不同校准参数 | `checkpoint_json` + `cutoff_us` + `calibration_json` | 暂停/恢复复用同一 cutoff 与校准快照；`collect` 阶段把输入快照整体冻结 |
 | 能从事件回查原观测、所用锚点、排除理由及候选区域 | `GET /events/{id}`、`/events/{id}/anchors`、`/events/{id}/observations` | 事件详情含观测、残差、校准模型、锚点 ID、候选区域单元格、排除理由、修订链接 |
 | 独立按给定声源反算到达时间检验计算 | `verifier/verify.py` | 不 import 任何服务代码，按文档化前向模型重算每条本地读数并与发布结果对比 |
+| 覆盖事实按网格、时段、栖息地记录在线与校准状态 | `app/analysis.py::station_coverage` + 报告 `coverage_facts` | 覆盖 = 已校准 boot 的"已完整上报"区间减去已声明缺口；未校准 boot 的覆盖是未知而非零；交叠台站的覆盖取并集而非求和 |
+| 跨台站事件在空间贡献中只出现一次，位置不确定时传播到所有候选网格 | `app/analysis.py::event_cell_weights` | 每个事件总贡献恒为 1，按定位单元格数分摊到候选分析网格；区域外权重单列 |
+| 最保守口径：只取两区均完整覆盖的网格时段做加权比较 | `app/analysis.py::_common_coverage` | 权重取两侧完整覆盖努力的较小值；一侧无完整覆盖的层列入"无法比较"，不补零 |
+| 用预先发布的栖息地×时段参考组成把各层率标准化为一个区域差异 | `app/analysis.py::_standardized` | 显示每层权重、方差与所有空层；空层按其参考权重披露、绝不补零；报告内嵌共同覆盖对照 |
+| 一侧无覆盖表示未知，绝不用其他层补零 | 全部层表：`rate = null` when `effort = 0` | `no_coverage` 层的率恒为 `null`；有贡献但无覆盖的层单列状态披露 |
+| 停机或校准信息迟到时生成新截止点，旧报告可复演 | `POST /analysis/reports/{id}/refresh`、`/reproduce`、`GET /analysis/reports/compare` | 报告按知识截止点（`as_of`）冻结；复演端点按原截止点重算并比对哈希；比较端点列出层变化与两个截止点之间到达的证据 |
 
 ### 时间模型（为什么不用到达时间归并）
 
@@ -46,6 +52,83 @@
 校准声源的位置和发声时刻已知，所以先扣掉传播时间，再用最小二乘拟合 `a_boot, b_boot`。
 重启产生新的 `boot_id`，`b` 可以任意跳变；同 boot 内允许缓慢漂移（分段线性）。
 上传时间只做记录，从不参与归并——这正是断电重启后补传记录会错位的原因。
+
+---
+
+## 1A. 区域活动率可比性分析
+
+两个区域记录的鸣叫数**不能直接比强弱**：夜间停机、栖息地组成和交叠台站都会改变
+"听得到"的机会。分析产品只给出**限定在可比样本上的活动率**、共同覆盖范围和无法
+比较的层，**不估计真实种群**。
+
+### 概念
+
+| 概念 | 定义 |
+| --- | --- |
+| 分析网格 | 覆盖观测区的规则网格（默认 250 m，`ANALYSIS_GRID_CELL_M`），单元格 `(ix, iy)` |
+| 区域 | 一组网格单元的命名集合，发布后不可变（`POST /analysis/regions`）；两区不得重叠 |
+| 栖息地 | 每个网格单元的类别，来自**预先发布**的栖息地图（`POST /analysis/habitat-maps`）；未标注的单元格归入显式的 `unclassified` 层 |
+| 时段 | 研究窗口按 `bin_seconds`（默认 12 h）切分；每个时段按中点 UTC 小时归为 `day`（06–18）或 `night`（18–06） |
+| 层（stratum） | `栖息地 × 时段类别`；率只在层内计算 |
+| 覆盖事实 | 每个 `网格 × 时段` 的被覆盖秒数与贡献台站的在线/校准状态 |
+| 参考组成 | 预先发布的 `栖息地 × 时段` 权重表（`POST /analysis/reference-compositions`），用于标准化 |
+
+### 覆盖如何推导（在线与校准状态）
+
+台站对参考时间的覆盖只在两条都成立时存在：
+
+1. 该 boot 有**有效校准**（否则本地读数根本无法放入参考时间——未校准 boot 的覆盖
+   是**未知**，不是零）；
+2. 台站通过进度报告**声明**了"至此本地读数为止已全部上传"。
+
+覆盖区间 = `[该 boot 最早一条记录, 已声明进度]` 减去已声明缺口（进度报告中的
+`gaps`，台站本地读数，经校准映射回参考时间）。交叠台站覆盖同一网格时取**区间并集**
+——听得到的机会不随台站数翻倍。缺口端点的校准映射有秒级不确定度，因此覆盖按
+`ANALYSIS_COVERAGE_TOLERANCE_S`（默认 5 s）容差判定"完整/无"，碎屑级覆盖不计入。
+
+### 事件的空间贡献
+
+每个存活事件（`final` 或 `provisional`，按截止点判定）的总贡献恒为 **1**：按其定位
+候选单元格数分摊到分析网格（位置不确定 → 传播到所有候选网格），落在两区之外的
+权重单列披露。事件计数绝不随听到它的台站数翻倍。
+
+### 两种口径
+
+**共同覆盖加权比较（最保守）**：只用两区都**完整覆盖**的网格时段。每层的率 =
+贡献 / 完整覆盖努力（cell-hour），层权重 = 两侧完整覆盖努力的较小值，差值按权重
+加权；方差按泊松近似 `var(rate) = count / effort²` 传播。一侧无完整覆盖的层列入
+`incomparable_strata`——未知，不补零。审阅容易，但共同样本可能很小。
+
+**标准化**：使用**全部**被覆盖的网格时段（部分覆盖按比例计入），把各层率按预先
+发布的参考组成 `W_s` 标准化为一个区域差异
+`Δ = Σ W_s·(r_A,s − r_B,s) / Σ W_s`，方差同理传播。报告必须显示：每层权重、方差、
+参与比较的权重质量、被排除的权重质量、以及**所有空层**（参考组成中有权重但一侧
+无覆盖的层，附其参考权重）。空层绝不补零。标准化报告内嵌共同覆盖对照
+（`common_coverage_crosscheck`）。
+
+**铁律**：一侧无覆盖 = 未知。任何层的率在其努力为零时恒为 `null`，绝不从其他层
+补零；有事件贡献但无覆盖的层以 `no_coverage_with_contributions` 状态单列。
+
+### 版本与复演
+
+报告按**知识截止点** `as_of` 冻结：只有截止点之前收到的观测、进度声明、校准模型
+和事件进入计算。停机或校准信息迟到时，`POST /analysis/reports/{id}/refresh` 以新
+截止点生成新版本（旧版保留并指名取代关系）；`POST .../reproduce` 按原截止点重算
+并比对 `report_hash`，证明旧报告可逐位复演；`GET /analysis/reports/compare` 逐层
+列出版本差异及两个截止点之间到达的证据（迟到进度声明、缺口、校准模型、事件）。
+
+### 分析接口一览
+
+| 接口 | 作用 |
+| --- | --- |
+| `POST /analysis/regions` / `GET /analysis/regions` | 发布/查询区域（不可变） |
+| `POST /analysis/habitat-maps` | 发布栖息地图 |
+| `POST /analysis/reference-compositions` | 发布参考组成 |
+| `POST /analysis/reports` | 按截止点生成报告（含覆盖事实、层表、两种口径） |
+| `GET /analysis/reports` / `GET /analysis/reports/{id}` | 列表 / 完整报告 |
+| `POST /analysis/reports/{id}/reproduce` | 按原截止点复演并比对哈希 |
+| `POST /analysis/reports/{id}/refresh` | 以新截止点生成下一版本 |
+| `GET /analysis/reports/compare?baseline_id&current_id` | 版本差异与迟到证据 |
 
 ---
 
@@ -86,11 +169,16 @@ PGPASSWORD=ccdev /opt/postgresql-18/bin/psql -h 127.0.0.1 -U ccdev -d postgres \
 ### 2.3 一键演示 + 自检
 
 ```bash
-BASE=http://127.0.0.1:8000 ./scripts/demo.sh
+BASE=http://127.0.0.1:8000 ./scripts/demo.sh            # 五个事件处理场景
+BASE=http://127.0.0.1:8000 ./scripts/demo_analysis.sh   # 两个可比性分析场景
 ```
 
-该脚本对五个内置场景逐个执行：重置 → 模拟台站分批上传 → 运行处理 → 独立校验，
-最后打印每条检查的通过情况。也可以手动分步执行（见第 5 节）。
+`demo.sh` 对五个内置场景逐个执行：重置 → 模拟台站分批上传 → 运行处理 → 独立校验。
+`demo_analysis.sh` 对两个分析场景执行：重置 → 上传 → 运行处理 → 发布分析定义 →
+生成可比性报告（`nightfailure` 还会投递迟到缺口声明并生成第二版报告）→ 独立校验
+（从真值重算覆盖与贡献，核对重复计数、未知范围与版本差异）。
+
+也可以手动分步执行（见第 5 节）。
 
 ---
 
@@ -119,24 +207,29 @@ PGPASSWORD=ccdev /opt/postgresql-18/bin/psql -h 127.0.0.1 -U ccdev -d postgres \
 ## 4. 验证方式（实际执行过的）
 
 ```bash
-# 1) 单元 + 集成 + 接口契约 + 独立校验器，共 59 个用例
+# 1) 单元 + 集成 + 接口契约 + 独立校验器，共 77 个用例
 .venv/bin/python -m pytest
-# 59 passed
+# 77 passed
 
-# 2) 五个样例场景的端到端自检（真实 HTTP 服务）
+# 2) 五个事件处理场景的端到端自检（真实 HTTP 服务）
 BASE=http://127.0.0.1:8000 ./scripts/demo.sh
 
-# 说明：上面的 pytest 含 6 个由独立校验器驱动的端到端用例、5 个接口契约用例；
-# demo.sh 使用真实 uvicorn 进程 + 真实 PostgreSQL，逐个场景输出校验结论。
+# 3) 两个可比性分析场景的端到端自检（真实 HTTP 服务）
+BASE=http://127.0.0.1:8000 ./scripts/demo_analysis.sh
 
-# 3) 单独校验某个已加载场景
+# 说明：pytest 含 6 个由独立校验器驱动的事件处理端到端用例、2 个分析校验器驱动的
+# 端到端用例、5 个接口契约用例；demo*.sh 使用真实 uvicorn 进程 + 真实 PostgreSQL。
+
+# 4) 单独校验某个已加载场景
 .venv/bin/python -m verifier.verify --scenario reboot \
   --base-url http://127.0.0.1:8000 --api-key dev-api-key
+.venv/bin/python -m verifier.verify_analysis --scenario daynight \
+  --base-url http://127.0.0.1:8000 --api-key dev-api-key
 
-# 4) 重新生成样例真值文件
+# 5) 重新生成样例真值文件
 .venv/bin/python scripts/generate_samples.py
 
-# 5) 重新导出 OpenAPI 文档
+# 6) 重新导出 OpenAPI 文档
 .venv/bin/python scripts/export_openapi.py
 ```
 
@@ -149,10 +242,17 @@ BASE=http://127.0.0.1:8000 ./scripts/demo.sh
 | `collinear` 共线站点 | 6 | 全部通过 | 每个事件返回 2 个镜像候选区域，`position.certain=false`，不报单一坐标 |
 | `duplicates` 重复补传 | 10 | 全部通过 | 整批重放 `accepted=0`；冲突记录 1 条且原文未被覆盖；事件数与记录数不变 |
 | `revision` 迟报 + 校准修订 | 11 | 全部通过 | 第二次运行校准哈希不同；旧事件 `superseded` 且由新事件 `supersedes_events` 指名；实际活动数 5 条而非叠加 |
+| `daynight` 昼夜偏采 + 交叠台站 + 空层 | 13 | 全部通过 | 朴素计数差 12（偏采假象）；共同覆盖差异 0.0；东侧夜间 4 层全部未知不补零；交叠台站努力不翻倍（8 格 × 24 h = 192 cell-hour）；空层按参考权重披露 |
+| `nightfailure` 夜间故障迟到 → 报告版本 | 17 | 全部通过 | v1 夜间假零率（差异 −0.0078）；迟到缺口声明后 v2 夜间未知（差异 0.0）；v1/v2 均可按各自截止点逐位复演；compare 列出覆盖丢失与 3 条迟到缺口声明 |
 
 独立校验器（`verifier/verify.py`）不引用 `app/` 下任何模块，按
 `arrival = emission + 距离/速度`、`local = slope_boot·arrival + intercept_boot` 从真值反算，
 再逐条与实际上传的本地时间戳对比（最差 12.1 ms，来自校准声源的模拟噪声）。
+
+分析校验器（`verifier/verify_analysis.py`）同样不引用 `app/`：它从真值的台站在线窗口
+与听力半径重算每个 `网格 × 时段` 的覆盖、从真值声源重算每层事件贡献，再核对报告 —
+每个事件总贡献恒为 1、无覆盖层率恒为 `null`、两种口径的差值能从已发布的层表与权重
+复算一致、旧版本可复演。
 
 ---
 
@@ -213,14 +313,25 @@ curl -s "$BASE/events/1/anchors" -H "$KEY" | python -m json.tool
 | `POST /runs/{id}/resume` | 从原 cutoff 续算 |
 | `GET /stats` | 总体计数 |
 
+分析走查（先跑 `.venv/bin/python -m simulator.analysis_demo --scenario daynight --reset`）：
+
+```bash
+curl -s "$BASE/analysis/reports" -H "$KEY" | python -m json.tool      # 报告列表
+curl -s "$BASE/analysis/reports/1" -H "$KEY" | python -m json.tool    # 完整报告：覆盖事实、层表、两种口径
+curl -s -X POST "$BASE/analysis/reports/1/reproduce" -H "$KEY"        # 按原截止点复演
+# nightfailure 场景（先跑 --scenario nightfailure --reset）：
+curl -s "$BASE/analysis/reports/compare?baseline_id=1&current_id=2" -H "$KEY" | python -m json.tool
+```
+
 ---
 
 ## 6. 样例与模拟器
 
 ```
 samples/
-  index.json            五个场景的概要
+  index.json            七个场景的概要
   <scenario>/truth.json 台站位置、每 boot 真值时钟模型、校准声源时刻、上传波次、真实事件
+                        （分析场景另含区域/栖息地/参考组成定义与台站在线窗口）
 ```
 
 `truth.json` 中的 `waves[].records` 就是模拟器实际 POST 的载荷；`waves[].truth` 记录每条
@@ -241,7 +352,7 @@ samples/
 .venv/bin/python -m simulator.run_simulator --scenario duplicates --reset --retransmit
 ```
 
-五个内置场景：
+七个内置场景（前五个面向事件处理，后两个面向可比性分析）：
 
 1. **overlapping** — 两个相距约 200 m 的同类声源在数秒内各自鸣叫，S2/S3 同时听到两者；
    要求"四站一声 = 1 事件"且"两兽重叠 = 2 事件"。
@@ -253,6 +364,12 @@ samples/
    要求事件与计数不变。
 5. **revision** — 先无 S3 数据跑一次，再补传 S3 与迟到校准后跑修订；要求旧事件被取代、
    新事件指名被取代者，而不是一次活动悄悄裂成两条。
+6. **daynight** — 两区真实鸣叫率相同：西区台站全天在线且听力范围交叠，东区台站
+   夜间定时停机并声明缺口；参考组成还包含东区无法覆盖的 mudflat 层。要求朴素计数
+   显出偏采假象、共同覆盖差异为零、夜间与空层全部未知不补零、交叠台站努力不翻倍。
+7. **nightfailure** — 北区全部记录仪夜间故障但起初静默（进度声明仍称完整），v1 报告
+   把北区夜间率误判为零；现场核查迟到地声明缺口后，v2 报告以新截止点把北区夜间改判
+   未知；要求 v1 可复演、v2 差异为零、版本差异与迟到证据可对照。
 
 ---
 
@@ -311,17 +428,21 @@ app/
   association.py   候选团枚举
   solver.py        互斥集合划分求解与并列检测
   pipeline.py      阶段化处理、检查点、定稿、修订
+  analysis.py      覆盖事实、事件空间贡献、共同覆盖与标准化比较、报告哈希
 simulator/
-  scenarios.py     五个虚构场景与每个 boot 的时钟模型
+  scenarios.py     七个虚构场景与每个 boot 的时钟模型
   run_simulator.py 真值生成、可暂停的分波上传、重放/冲突注入
+  analysis_demo.py 分析场景驱动（发布定义、生成报告、迟到缺口、版本对比）
 verifier/
   verify.py        独立前向模型校验器（不引用 app/）
+  verify_analysis.py 独立分析校验器（从真值重算覆盖与贡献）
 scripts/
-  demo.sh          一键演示 + 自检
+  demo.sh          事件处理场景一键演示 + 自检
+  demo_analysis.sh 可比性分析场景一键演示 + 自检
   generate_samples.py
   export_openapi.py
-tests/             59 个用例（导入、校准、定位、关联、求解、流水线、校验器、接口契约）
-samples/           五个场景的真值文件
+tests/             77 个用例（导入、校准、定位、关联、求解、流水线、分析、校验器、接口契约）
+samples/           七个场景的真值文件
 openapi.json       导出的 OpenAPI 3.1 文档
 Dockerfile / docker-compose.yml
 ```
@@ -346,3 +467,7 @@ Dockerfile / docker-compose.yml
 | `MIN_EVENT_STATIONS` | `2` | 事件最少台站数 |
 | `MAX_SOLUTION_OPTIONS` | `5` | 并列/备选分解上限 |
 | `HEARING_RADIUS_M` / `PROGRESS_MARGIN_S` | `1600` / `120` | 定稿判定 |
+| `ANALYSIS_GRID_CELL_M` | `250.0` | 分析网格单元边长（米） |
+| `ANALYSIS_BIN_SECONDS` | `43200` | 分析时段长度（秒），窗口须为其整数倍 |
+| `ANALYSIS_DAY_START_HOUR` / `ANALYSIS_NIGHT_START_HOUR` | `6` / `18` | 时段类别（昼/夜）的 UTC 小时边界 |
+| `ANALYSIS_COVERAGE_TOLERANCE_S` | `5.0` | 覆盖"完整/无"的判定容差（吸收缺口端点的校准不确定度） |

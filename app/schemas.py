@@ -386,3 +386,168 @@ class StatsSummary(BaseModel):
     runs: dict
     events: dict
     latest_run: RunOut | None
+
+
+# --------------------------------------------------------------------------- #
+# Comparability analysis
+# --------------------------------------------------------------------------- #
+class AnalysisRegionCreate(JsonModel):
+    id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
+    name: str = Field(min_length=1, max_length=200)
+    grid_cell_size_m: float | None = Field(default=None, gt=1, le=100_000)
+    cells: list[list[int]] | None = Field(
+        default=None, description="Explicit analysis-grid cells as [ix, iy] pairs"
+    )
+    bbox: dict | None = Field(
+        default=None,
+        description="Inclusive cell-index rectangle {ix_min, ix_max, iy_min, iy_max}; expanded to cells",
+    )
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def _cells_or_bbox(self):
+        if (self.cells is None) == (self.bbox is None):
+            raise ValueError("provide exactly one of cells or bbox")
+        if self.cells is not None:
+            for pair in self.cells:
+                if len(pair) != 2:
+                    raise ValueError("each cell must be [ix, iy]")
+        return self
+
+
+class AnalysisRegionOut(BaseModel):
+    id: str
+    name: str
+    grid_cell_size_m: float
+    cell_count: int
+    cells: list[list[int]]
+    notes: str | None
+    created_at: str
+
+
+class HabitatCell(JsonModel):
+    ix: int
+    iy: int
+    habitat: str = Field(min_length=1, max_length=64)
+
+
+class HabitatMapCreate(JsonModel):
+    id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
+    name: str | None = Field(default=None, max_length=200)
+    grid_cell_size_m: float | None = Field(default=None, gt=1, le=100_000)
+    cells: list[HabitatCell] = Field(min_length=1)
+
+
+class HabitatMapOut(BaseModel):
+    id: str
+    name: str | None
+    grid_cell_size_m: float
+    cell_count: int
+    cells: list[dict]
+    created_at: str
+
+
+class ReferenceCompositionEntry(JsonModel):
+    habitat: str = Field(min_length=1, max_length=64)
+    period_class: str = Field(min_length=1, max_length=64)
+    weight: float = Field(gt=0, le=1e6)
+
+
+class ReferenceCompositionCreate(JsonModel):
+    id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
+    name: str = Field(min_length=1, max_length=200)
+    entries: list[ReferenceCompositionEntry] = Field(min_length=1)
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def _unique_strata(self):
+        seen = set()
+        for entry in self.entries:
+            key = (entry.habitat, entry.period_class)
+            if key in seen:
+                raise ValueError(f"duplicate stratum {key} in reference composition")
+            seen.add(key)
+        return self
+
+
+class ReferenceCompositionOut(BaseModel):
+    id: str
+    name: str
+    entries: list[dict]
+    notes: str | None
+    created_at: str
+
+
+class AnalysisWindow(JsonModel):
+    start: str
+    end: str
+
+    @model_validator(mode="after")
+    def _ordered(self):
+        from .timeutil import parse_iso
+
+        if parse_iso(self.end) <= parse_iso(self.start):
+            raise ValueError("window end must be after start")
+        return self
+
+
+class AnalysisReportCreate(JsonModel):
+    region_a_id: str
+    region_b_id: str
+    habitat_map_id: str
+    reference_composition_id: str | None = None
+    class_label: str | None = None
+    window: AnalysisWindow
+    grid_cell_size_m: float | None = Field(default=None, gt=1, le=100_000)
+    bin_seconds: int | None = Field(default=None, ge=60, le=31_536_000)
+    day_start_hour: int | None = Field(default=None, ge=0, le=23)
+    night_start_hour: int | None = Field(default=None, ge=0, le=23)
+    methods: list[Literal["common_coverage", "standardized"]] | None = None
+    as_of: str | None = Field(
+        default=None,
+        description="Knowledge cutoff (UTC). Only information received at or before "
+        "this instant enters the report; default is now.",
+    )
+    created_by: str | None = Field(default=None, max_length=128)
+
+
+class AnalysisReportSummary(BaseModel):
+    id: int
+    as_of: str
+    report_hash: str
+    inputs_hash: str
+    status: str
+    supersedes_report_id: int | None
+    created_by: str | None
+    created_at: str
+    config: dict
+
+
+class AnalysisReportOut(BaseModel):
+    id: int
+    as_of: str
+    report_hash: str
+    inputs_hash: str
+    status: str
+    supersedes_report_id: int | None
+    created_by: str | None
+    created_at: str
+    result: dict
+
+
+class ReproduceResponse(BaseModel):
+    report_id: int
+    reproducible: bool
+    report_hash: str
+    recomputed_hash: str
+    as_of: str
+    note: str
+
+
+class RefreshReportRequest(JsonModel):
+    as_of: str | None = Field(
+        default=None,
+        description="New knowledge cutoff (UTC); default is now. Must be later "
+        "than the superseded report's cutoff.",
+    )
+    created_by: str | None = Field(default=None, max_length=128)

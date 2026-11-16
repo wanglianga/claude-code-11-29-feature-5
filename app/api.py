@@ -6,11 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from . import pipeline, schemas
+from . import analysis, pipeline, schemas
 from .config import settings
 from .db import Base, engine, get_db
 from .ingest import ingest_batch, ingest_progress, parse_local_us_iso
 from .models import (
+    AnalysisRegion,
+    AnalysisReport,
     AuditLog,
     CalibrationModel,
     CalibrationSourceRecord,
@@ -18,9 +20,11 @@ from .models import (
     EventExclusion,
     EventObservation,
     EventRevisionLink,
+    HabitatMap,
     Observation,
     ObservationConflict,
     ProcessingRun,
+    ReferenceComposition,
     SoundClass,
     Station,
     StationBoot,
@@ -1064,6 +1068,485 @@ def event_observations(event_id: int, db: Session = Depends(get_db)):
     return schemas.ObservationList(
         total=len(rows), observations=[_observation_out(o) for o in rows]
     )
+
+
+# --------------------------------------------------------------------------- #
+# Comparability analysis
+# --------------------------------------------------------------------------- #
+def _region_out(row: AnalysisRegion) -> schemas.AnalysisRegionOut:
+    return schemas.AnalysisRegionOut(
+        id=row.id,
+        name=row.name,
+        grid_cell_size_m=row.grid_cell_size_m,
+        cell_count=len(row.cells_json),
+        cells=[list(c) for c in row.cells_json],
+        notes=row.notes,
+        created_at=iso(row.created_at_us),
+    )
+
+
+@router.post(
+    "/analysis/regions",
+    response_model=schemas.AnalysisRegionOut,
+    status_code=201,
+    tags=["analysis"],
+    summary="Publish an immutable analysis region (a named set of grid cells)",
+)
+def create_analysis_region(body: schemas.AnalysisRegionCreate, db: Session = Depends(get_db)):
+    if db.get(AnalysisRegion, body.id):
+        raise HTTPException(409, f"analysis region {body.id} already exists")
+    if body.cells is not None:
+        cells = sorted({(int(ix), int(iy)) for ix, iy in body.cells})
+    else:
+        box = body.bbox or {}
+        try:
+            ix0, ix1 = int(box["ix_min"]), int(box["ix_max"])
+            iy0, iy1 = int(box["iy_min"]), int(box["iy_max"])
+        except (KeyError, TypeError, ValueError):
+            raise HTTPException(400, "bbox must carry ix_min, ix_max, iy_min, iy_max")
+        if ix1 < ix0 or iy1 < iy0:
+            raise HTTPException(400, "bbox max must be >= min")
+        cells = [(ix, iy) for ix in range(ix0, ix1 + 1) for iy in range(iy0, iy1 + 1)]
+    row = AnalysisRegion(
+        id=body.id,
+        name=body.name,
+        grid_cell_size_m=body.grid_cell_size_m or settings.analysis_grid_cell_m,
+        cells_json=[list(c) for c in cells],
+        notes=body.notes,
+        created_at_us=now_us(),
+    )
+    db.add(row)
+    db.commit()
+    return _region_out(row)
+
+
+@router.get("/analysis/regions", response_model=list[schemas.AnalysisRegionOut], tags=["analysis"], summary="List analysis regions")
+def list_analysis_regions(db: Session = Depends(get_db)):
+    rows = list(db.execute(select(AnalysisRegion).order_by(AnalysisRegion.id)).scalars())
+    return [_region_out(r) for r in rows]
+
+
+@router.get("/analysis/regions/{region_id}", response_model=schemas.AnalysisRegionOut, tags=["analysis"], summary="Fetch one analysis region")
+def get_analysis_region(region_id: str, db: Session = Depends(get_db)):
+    row = db.get(AnalysisRegion, region_id)
+    if not row:
+        raise HTTPException(404, "analysis region not found")
+    return _region_out(row)
+
+
+@router.post(
+    "/analysis/habitat-maps",
+    response_model=schemas.HabitatMapOut,
+    status_code=201,
+    tags=["analysis"],
+    summary="Publish the pre-published habitat class of each grid cell",
+)
+def create_habitat_map(body: schemas.HabitatMapCreate, db: Session = Depends(get_db)):
+    if db.get(HabitatMap, body.id):
+        raise HTTPException(409, f"habitat map {body.id} already exists")
+    row = HabitatMap(
+        id=body.id,
+        name=body.name,
+        grid_cell_size_m=body.grid_cell_size_m or settings.analysis_grid_cell_m,
+        cells_json=[{"ix": c.ix, "iy": c.iy, "habitat": c.habitat} for c in body.cells],
+        created_at_us=now_us(),
+    )
+    db.add(row)
+    db.commit()
+    return _habitat_out(row)
+
+
+def _habitat_out(row: HabitatMap) -> schemas.HabitatMapOut:
+    return schemas.HabitatMapOut(
+        id=row.id,
+        name=row.name,
+        grid_cell_size_m=row.grid_cell_size_m,
+        cell_count=len(row.cells_json),
+        cells=row.cells_json,
+        created_at=iso(row.created_at_us),
+    )
+
+
+@router.get("/analysis/habitat-maps", response_model=list[schemas.HabitatMapOut], tags=["analysis"], summary="List habitat maps")
+def list_habitat_maps(db: Session = Depends(get_db)):
+    rows = list(db.execute(select(HabitatMap).order_by(HabitatMap.id)).scalars())
+    return [_habitat_out(r) for r in rows]
+
+
+@router.post(
+    "/analysis/reference-compositions",
+    response_model=schemas.ReferenceCompositionOut,
+    status_code=201,
+    tags=["analysis"],
+    summary="Publish a habitat x period-class reference composition for standardisation",
+)
+def create_reference_composition(body: schemas.ReferenceCompositionCreate, db: Session = Depends(get_db)):
+    if db.get(ReferenceComposition, body.id):
+        raise HTTPException(409, f"reference composition {body.id} already exists")
+    row = ReferenceComposition(
+        id=body.id,
+        name=body.name,
+        entries_json=[
+            {"habitat": e.habitat, "period_class": e.period_class, "weight": e.weight}
+            for e in body.entries
+        ],
+        notes=body.notes,
+        created_at_us=now_us(),
+    )
+    db.add(row)
+    db.commit()
+    return _reference_out(row)
+
+
+def _reference_out(row: ReferenceComposition) -> schemas.ReferenceCompositionOut:
+    return schemas.ReferenceCompositionOut(
+        id=row.id,
+        name=row.name,
+        entries=row.entries_json,
+        notes=row.notes,
+        created_at=iso(row.created_at_us),
+    )
+
+
+@router.get("/analysis/reference-compositions", response_model=list[schemas.ReferenceCompositionOut], tags=["analysis"], summary="List reference compositions")
+def list_reference_compositions(db: Session = Depends(get_db)):
+    rows = list(
+        db.execute(select(ReferenceComposition).order_by(ReferenceComposition.id)).scalars()
+    )
+    return [_reference_out(r) for r in rows]
+
+
+def _report_config_from(body: schemas.AnalysisReportCreate) -> analysis.ReportConfig:
+    return analysis.ReportConfig(
+        region_a_id=body.region_a_id,
+        region_b_id=body.region_b_id,
+        habitat_map_id=body.habitat_map_id,
+        reference_composition_id=body.reference_composition_id,
+        class_label=body.class_label,
+        window_start_us=to_us(body.window.start),
+        window_end_us=to_us(body.window.end),
+        grid_cell_m=body.grid_cell_size_m or settings.analysis_grid_cell_m,
+        bin_seconds=body.bin_seconds or settings.analysis_bin_seconds,
+        day_start_hour=(
+            body.day_start_hour
+            if body.day_start_hour is not None
+            else settings.analysis_day_start_hour
+        ),
+        night_start_hour=(
+            body.night_start_hour
+            if body.night_start_hour is not None
+            else settings.analysis_night_start_hour
+        ),
+        methods=tuple(body.methods) if body.methods else ("common_coverage", "standardized"),
+    )
+
+
+def _generate_report_row(
+    db: Session, cfg: analysis.ReportConfig, as_of_us: int, created_by: str | None
+) -> AnalysisReport:
+    """Compute a report and persist it frozen at its knowledge cutoff."""
+    try:
+        result = analysis.generate_report(db, cfg, as_of_us, settings)
+    except KeyError as exc:
+        raise HTTPException(404, f"unknown analysis definition: {exc}")
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    row = AnalysisReport(
+        as_of_us=as_of_us,
+        config_json=cfg.resolved(),
+        inputs_hash=analysis.inputs_hash(cfg),
+        result_json=result,
+        report_hash=analysis.report_hash(result),
+        status="done",
+        created_by=created_by,
+        created_at_us=now_us(),
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def _report_summary(row: AnalysisReport) -> schemas.AnalysisReportSummary:
+    return schemas.AnalysisReportSummary(
+        id=row.id,
+        as_of=iso(row.as_of_us),
+        report_hash=row.report_hash,
+        inputs_hash=row.inputs_hash,
+        status=row.status,
+        supersedes_report_id=row.supersedes_report_id,
+        created_by=row.created_by,
+        created_at=iso(row.created_at_us),
+        config=row.config_json,
+    )
+
+
+def _report_out(row: AnalysisReport) -> schemas.AnalysisReportOut:
+    return schemas.AnalysisReportOut(
+        id=row.id,
+        as_of=iso(row.as_of_us),
+        report_hash=row.report_hash,
+        inputs_hash=row.inputs_hash,
+        status=row.status,
+        supersedes_report_id=row.supersedes_report_id,
+        created_by=row.created_by,
+        created_at=iso(row.created_at_us),
+        result=row.result_json,
+    )
+
+
+@router.post(
+    "/analysis/reports",
+    response_model=schemas.AnalysisReportOut,
+    status_code=201,
+    tags=["analysis"],
+    summary="Generate a versioned comparability report frozen at a knowledge cutoff",
+)
+def create_analysis_report(body: schemas.AnalysisReportCreate, db: Session = Depends(get_db)):
+    if body.region_a_id == body.region_b_id:
+        raise HTTPException(400, "region_a_id and region_b_id must differ")
+    cfg = _report_config_from(body)
+    as_of_us = to_us(body.as_of) if body.as_of else now_us()
+    row = _generate_report_row(db, cfg, as_of_us, body.created_by)
+    db.add(
+        AuditLog(
+            actor=body.created_by or "analyst",
+            action="analysis_report.create",
+            target_type="analysis_report",
+            target_id=str(row.id),
+            detail={"as_of": iso(as_of_us), "report_hash": row.report_hash},
+            created_at_us=now_us(),
+        )
+    )
+    db.commit()
+    return _report_out(row)
+
+
+@router.get("/analysis/reports", response_model=list[schemas.AnalysisReportSummary], tags=["analysis"], summary="List comparability reports")
+def list_analysis_reports(limit: int = Query(20, ge=1, le=200), db: Session = Depends(get_db)):
+    rows = list(
+        db.execute(
+            select(AnalysisReport).order_by(AnalysisReport.id.desc()).limit(limit)
+        ).scalars()
+    )
+    return [_report_summary(r) for r in rows]
+
+
+@router.get("/analysis/reports/compare", tags=["analysis"], summary="Diff two report versions and explain what changed")
+def compare_analysis_reports(
+    baseline_id: int = Query(...),
+    current_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Version difference between two cutoffs.
+
+    Late shutdown or calibration information produces a new report at a new
+    cutoff; this endpoint shows, stratum by stratum, which coverage facts and
+    rates changed, and lists the evidence that arrived between the two
+    cutoffs.  The baseline report itself stays reproducible.
+    """
+    baseline = db.get(AnalysisReport, baseline_id)
+    current = db.get(AnalysisReport, current_id)
+    if not baseline or not current:
+        raise HTTPException(404, "report not found")
+    older, newer = (
+        (baseline, current) if baseline.as_of_us <= current.as_of_us else (current, baseline)
+    )
+    base_strata = {
+        (s["habitat"], s["period_class"]): s
+        for s in baseline.result_json.get("strata", [])
+    }
+    curr_strata = {
+        (s["habitat"], s["period_class"]): s
+        for s in current.result_json.get("strata", [])
+    }
+    changes = []
+    for key in sorted(set(base_strata) | set(curr_strata)):
+        before = base_strata.get(key)
+        after = curr_strata.get(key)
+        for side in ("a", "b"):
+            b_reg = (before or {}).get("regions", {}).get(side, {})
+            c_reg = (after or {}).get("regions", {}).get(side, {})
+            b_status = b_reg.get("status", "absent")
+            c_status = c_reg.get("status", "absent")
+            b_eff = b_reg.get("effort_cell_hours", 0.0)
+            c_eff = c_reg.get("effort_cell_hours", 0.0)
+            if b_status == c_status and abs(b_eff - c_eff) < 1e-9 and (
+                b_reg.get("contributions") == c_reg.get("contributions")
+            ):
+                continue
+            if b_status != c_status:
+                kind = (
+                    "coverage_lost"
+                    if c_status.startswith("no_coverage")
+                    else "coverage_gained"
+                )
+            elif abs(b_eff - c_eff) > 1e-9:
+                kind = "effort_changed"
+            else:
+                kind = "contributions_changed"
+            changes.append(
+                {
+                    "habitat": key[0],
+                    "period_class": key[1],
+                    "region": (before or after)["regions"][side]["region_id"],
+                    "change": kind,
+                    "before": {
+                        "status": b_status,
+                        "effort_cell_hours": b_eff,
+                        "contributions": b_reg.get("contributions"),
+                        "rate_per_cell_hour": b_reg.get("rate_per_cell_hour"),
+                    },
+                    "after": {
+                        "status": c_status,
+                        "effort_cell_hours": c_eff,
+                        "contributions": c_reg.get("contributions"),
+                        "rate_per_cell_hour": c_reg.get("rate_per_cell_hour"),
+                    },
+                }
+            )
+    lo, hi = older.as_of_us, newer.as_of_us
+    late_progress = list(
+        db.execute(
+            select(StationProgress).where(
+                StationProgress.received_at_us > lo, StationProgress.received_at_us <= hi
+            )
+        ).scalars()
+    )
+    late_calibrations = list(
+        db.execute(
+            select(CalibrationModel).where(
+                CalibrationModel.created_at_us > lo, CalibrationModel.created_at_us <= hi
+            )
+        ).scalars()
+    )
+    late_events = list(
+        db.execute(
+            select(Event).where(Event.created_at_us > lo, Event.created_at_us <= hi)
+        ).scalars()
+    )
+    gap_reports = [p for p in late_progress if p.gaps_json]
+    return {
+        "baseline_id": baseline.id,
+        "current_id": current.id,
+        "baseline_as_of": iso(baseline.as_of_us),
+        "current_as_of": iso(current.as_of_us),
+        "same_inputs": baseline.inputs_hash == current.inputs_hash,
+        "same_result": baseline.report_hash == current.report_hash,
+        "stratum_changes": changes,
+        "evidence_arrived_between_cutoffs": {
+            "progress_reports": len(late_progress),
+            "progress_reports_declaring_gaps": len(gap_reports),
+            "gap_declarations": [
+                {
+                    "station_id": p.station_id,
+                    "boot_id": p.boot_id,
+                    "received_at": iso(p.received_at_us),
+                    "gaps": p.gaps_json,
+                }
+                for p in gap_reports
+            ],
+            "calibration_models": len(late_calibrations),
+            "events_created": len(late_events),
+        },
+        "note": (
+            "the baseline report remains reproducible at its own cutoff; "
+            "differences reflect evidence that arrived after it"
+        ),
+    }
+
+
+@router.get("/analysis/reports/{report_id}", response_model=schemas.AnalysisReportOut, tags=["analysis"], summary="Fetch a full comparability report")
+def get_analysis_report(report_id: int, db: Session = Depends(get_db)):
+    row = db.get(AnalysisReport, report_id)
+    if not row:
+        raise HTTPException(404, "analysis report not found")
+    return _report_out(row)
+
+
+@router.post(
+    "/analysis/reports/{report_id}/reproduce",
+    response_model=schemas.ReproduceResponse,
+    tags=["analysis"],
+    summary="Re-derive the report at its original cutoff and compare hashes",
+)
+def reproduce_analysis_report(report_id: int, db: Session = Depends(get_db)):
+    """Re-derivation check: an old report must be exactly reproducible.
+
+    The computation only reads evidence received at or before the report's
+    cutoff, so late shutdown or calibration information cannot change what the
+    old report said — it can only produce a *new* report at a new cutoff.
+    """
+    row = db.get(AnalysisReport, report_id)
+    if not row:
+        raise HTTPException(404, "analysis report not found")
+    cfg = _report_config_from(schemas.AnalysisReportCreate(**_config_to_create(row.config_json)))
+    recomputed = analysis.generate_report(db, cfg, row.as_of_us, settings)
+    recomputed_hash = analysis.report_hash(recomputed)
+    reproducible = recomputed_hash == row.report_hash
+    return schemas.ReproduceResponse(
+        report_id=row.id,
+        reproducible=reproducible,
+        report_hash=row.report_hash,
+        recomputed_hash=recomputed_hash,
+        as_of=iso(row.as_of_us),
+        note=(
+            "report re-derived identically from its cutoff"
+            if reproducible
+            else "MISMATCH: the stored report cannot be re-derived from its cutoff"
+        ),
+    )
+
+
+def _config_to_create(config: dict) -> dict:
+    """Translate a stored resolved config back into create-request shape."""
+    return {
+        "region_a_id": config["region_a_id"],
+        "region_b_id": config["region_b_id"],
+        "habitat_map_id": config["habitat_map_id"],
+        "reference_composition_id": config.get("reference_composition_id"),
+        "class_label": config.get("class_label"),
+        "window": config["window"],
+        "grid_cell_size_m": config.get("grid_cell_m"),
+        "bin_seconds": config.get("bin_seconds"),
+        "day_start_hour": config.get("period_classes", {}).get("day_start_hour"),
+        "night_start_hour": config.get("period_classes", {}).get("night_start_hour"),
+        "methods": config.get("methods"),
+    }
+
+
+@router.post(
+    "/analysis/reports/{report_id}/refresh",
+    response_model=schemas.AnalysisReportOut,
+    status_code=201,
+    tags=["analysis"],
+    summary="Issue the same report at a new cutoff (late evidence creates a new version)",
+)
+def refresh_analysis_report(
+    report_id: int,
+    body: schemas.RefreshReportRequest | None = None,
+    db: Session = Depends(get_db),
+):
+    row = db.get(AnalysisReport, report_id)
+    if not row:
+        raise HTTPException(404, "analysis report not found")
+    as_of_us = to_us(body.as_of) if body and body.as_of else now_us()
+    if as_of_us <= row.as_of_us:
+        raise HTTPException(400, "the new cutoff must be later than the report's cutoff")
+    cfg = _report_config_from(schemas.AnalysisReportCreate(**_config_to_create(row.config_json)))
+    new_row = _generate_report_row(db, cfg, as_of_us, (body.created_by if body else None) or row.created_by)
+    new_row.supersedes_report_id = row.id
+    db.add(
+        AuditLog(
+            actor=new_row.created_by or "analyst",
+            action="analysis_report.refresh",
+            target_type="analysis_report",
+            target_id=str(new_row.id),
+            detail={"supersedes_report_id": row.id, "as_of": iso(as_of_us)},
+            created_at_us=now_us(),
+        )
+    )
+    db.commit()
+    return _report_out(new_row)
 
 
 # --------------------------------------------------------------------------- #

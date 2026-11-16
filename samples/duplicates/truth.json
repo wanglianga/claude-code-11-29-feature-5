@@ -16,6 +16,7 @@
       "y": 150.0,
       "hearing_radius_m": 1700.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -34,6 +35,7 @@
       "y": 200.0,
       "hearing_radius_m": 1700.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -52,6 +54,7 @@
       "y": 1300.0,
       "hearing_radius_m": 1700.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -70,6 +73,7 @@
       "y": 900.0,
       "hearing_radius_m": 1500.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -283,6 +287,7 @@
       "upload_s": 670.2573199079419,
       "declare_through_ref_s": 624.90024,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -1278,6 +1283,7 @@
       "upload_s": 678.8351098554874,
       "declare_through_ref_s": 623.224356,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -2273,6 +2279,7 @@
       "upload_s": 689.7539143040249,
       "declare_through_ref_s": 621.765295,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -2800,6 +2807,7 @@
       "upload_s": 736.865669881661,
       "declare_through_ref_s": 622.170929,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -3795,6 +3803,7 @@
       "upload_s": 2486.7614519999997,
       "declare_through_ref_s": 2486.7614519999997,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 21,
@@ -4135,6 +4144,7 @@
       "upload_s": 2581.0335130000003,
       "declare_through_ref_s": 2581.0335130000003,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 39,
@@ -4787,6 +4797,7 @@
       "upload_s": 2582.507748,
       "declare_through_ref_s": 2582.507748,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 39,
@@ -5439,6 +5450,7 @@
       "upload_s": 2584.488904,
       "declare_through_ref_s": 2584.488904,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 39,
@@ -6090,5 +6102,6 @@
     "replay_batch_index": 0,
     "conflict_station": "S1",
     "conflict_uncertainty_ms": 45.0
-  }
+  },
+  "analysis": null
 }

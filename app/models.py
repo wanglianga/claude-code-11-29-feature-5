@@ -340,6 +340,79 @@ class EventRevisionLink(Base):
     created_at_us: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
 
+class AnalysisRegion(Base):
+    """A named set of analysis-grid cells (one side of a comparison).
+
+    Regions are immutable once published: a report references the exact cell
+    set it used, and changing a region means publishing a new id.
+    """
+
+    __tablename__ = "analysis_regions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    grid_cell_size_m: Mapped[float] = mapped_column(Float, nullable=False)
+    cells_json: Mapped[list] = mapped_column(JSONB, nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at_us: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+class HabitatMap(Base):
+    """Pre-published habitat class per analysis-grid cell."""
+
+    __tablename__ = "habitat_maps"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str | None] = mapped_column(String(200))
+    grid_cell_size_m: Mapped[float] = mapped_column(Float, nullable=False)
+    cells_json: Mapped[list] = mapped_column(JSONB, nullable=False)
+    created_at_us: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+class ReferenceComposition(Base):
+    """Pre-published habitat x period-class reference weights.
+
+    Used to standardise stratum rates onto one composition so two regions can
+    be compared as a single difference.  Immutable once published.
+    """
+
+    __tablename__ = "reference_compositions"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    entries_json: Mapped[list] = mapped_column(JSONB, nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at_us: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+class AnalysisReport(Base):
+    """A versioned comparability report frozen at a knowledge cutoff.
+
+    ``as_of_us`` is the knowledge cutoff: only observations ingested, progress
+    reports received, calibration models created and events created at or
+    before it enter the computation, so an old report can be re-derived
+    exactly even after late shutdown or calibration information arrives.
+    """
+
+    __tablename__ = "analysis_reports"
+    __table_args__ = (
+        Index("ix_analysis_reports_created", "created_at_us"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    as_of_us: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    config_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    inputs_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    report_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="done")
+    supersedes_report_id: Mapped[int | None] = mapped_column(
+        ForeignKey("analysis_reports.id", ondelete="SET NULL")
+    )
+    created_by: Mapped[str | None] = mapped_column(String(128))
+    created_at_us: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
 

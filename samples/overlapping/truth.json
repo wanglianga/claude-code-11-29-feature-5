@@ -16,6 +16,7 @@
       "y": 100.0,
       "hearing_radius_m": 1700.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -34,6 +35,7 @@
       "y": 150.0,
       "hearing_radius_m": 1700.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -52,6 +54,7 @@
       "y": 950.0,
       "hearing_radius_m": 1700.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -70,6 +73,7 @@
       "y": 600.0,
       "hearing_radius_m": 1600.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -359,6 +363,7 @@
       "upload_s": 181.95571180399094,
       "declare_through_ref_s": 143.329709,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -1611,6 +1616,7 @@
       "upload_s": 189.93268390794185,
       "declare_through_ref_s": 144.575604,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -2863,6 +2869,7 @@
       "upload_s": 221.49076502563474,
       "declare_through_ref_s": 142.306698,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -4115,6 +4122,7 @@
       "upload_s": 275.311097642017,
       "declare_through_ref_s": 141.753198,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -5367,6 +5375,7 @@
       "upload_s": 2340.928452,
       "declare_through_ref_s": 2340.928452,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 49,
@@ -6195,6 +6204,7 @@
       "upload_s": 2342.54849,
       "declare_through_ref_s": 2342.54849,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 49,
@@ -7023,6 +7033,7 @@
       "upload_s": 2343.90022,
       "declare_through_ref_s": 2343.90022,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 49,
@@ -7851,6 +7862,7 @@
       "upload_s": 2344.2441010000002,
       "declare_through_ref_s": 2344.2441010000002,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 49,
@@ -8678,5 +8690,6 @@
     "events_with_4_stations": 6,
     "distinct_sources": 2,
     "note": "each source emits 3 calls; every call should be heard by all four stations"
-  }
+  },
+  "analysis": null
 }

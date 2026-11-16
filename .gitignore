@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 samples/*/verification.json
+samples/*/verification_analysis.json
 # Generated/runtime files excluded from GSB delivery
 node_modules/
 **/node_modules/

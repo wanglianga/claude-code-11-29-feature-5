@@ -16,6 +16,7 @@
       "y": 250.0,
       "hearing_radius_m": 2600.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -34,6 +35,7 @@
       "y": 100.0,
       "hearing_radius_m": 1800.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -61,6 +63,7 @@
       "y": 900.0,
       "hearing_radius_m": 2600.0,
       "late": true,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -79,6 +82,7 @@
       "y": 880.0,
       "hearing_radius_m": 2600.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -472,6 +476,7 @@
       "upload_s": -322.0365938351702,
       "declare_through_ref_s": -395.622937,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -1524,6 +1529,7 @@
       "upload_s": 1404.373138,
       "declare_through_ref_s": 1404.373138,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 41,
@@ -2202,6 +2208,7 @@
       "upload_s": 1541.3393739224907,
       "declare_through_ref_s": 1501.025723,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -4279,6 +4286,7 @@
       "upload_s": 1546.6690329079418,
       "declare_through_ref_s": 1501.311953,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -6351,6 +6359,7 @@
       "upload_s": 2799.828831041424,
       "declare_through_ref_s": 2704.376196,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -7388,6 +7397,7 @@
       "upload_s": 4657.280904,
       "declare_through_ref_s": 4657.280904,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 41,
@@ -8071,6 +8081,7 @@
       "upload_s": 4660.301498,
       "declare_through_ref_s": 4660.301498,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 81,
@@ -9425,6 +9436,7 @@
       "upload_s": 4660.639277,
       "declare_through_ref_s": 4660.639277,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 81,
@@ -10774,6 +10786,7 @@
       "upload_s": 5538.393786059864,
       "declare_through_ref_s": 4659.003744,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -14189,5 +14202,6 @@
     ],
     "late_station": "S3",
     "note": "S2's two boots must have separate calibration models"
-  }
+  },
+  "analysis": null
 }

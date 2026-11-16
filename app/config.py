@@ -95,6 +95,19 @@ class Settings:
     # Processing
     max_run_observations: int = _env_int("MAX_RUN_OBSERVATIONS", 20000)
 
+    # Comparability analysis (regional activity-rate reports)
+    analysis_grid_cell_m: float = _env_float("ANALYSIS_GRID_CELL_M", 250.0)
+    analysis_bin_seconds: int = _env_int("ANALYSIS_BIN_SECONDS", 43200)
+    analysis_day_start_hour: int = _env_int("ANALYSIS_DAY_START_HOUR", 6)
+    analysis_night_start_hour: int = _env_int("ANALYSIS_NIGHT_START_HOUR", 18)
+    # A cell-bin is treated as uncovered when its covered time is below this
+    # tolerance, and as fully covered when its uncovered time is below it.
+    # The tolerance absorbs the calibration uncertainty of gap endpoints; it
+    # is far below any real shutdown.
+    analysis_coverage_tolerance_s: float = _env_float(
+        "ANALYSIS_COVERAGE_TOLERANCE_S", 5.0
+    )
+
     def as_dict(self) -> dict:
         data = asdict(self)
         data["samples_dir"] = str(self.samples_dir)

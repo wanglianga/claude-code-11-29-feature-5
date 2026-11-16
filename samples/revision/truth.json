@@ -16,6 +16,7 @@
       "y": 150.0,
       "hearing_radius_m": 1600.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -34,6 +35,7 @@
       "y": 300.0,
       "hearing_radius_m": 1600.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -52,6 +54,7 @@
       "y": 1000.0,
       "hearing_radius_m": 1600.0,
       "late": true,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -70,6 +73,7 @@
       "y": 820.0,
       "hearing_radius_m": 1500.0,
       "late": false,
+      "online_windows_s": null,
       "boots": [
         {
           "boot_id": "b1",
@@ -355,6 +359,7 @@
       "upload_s": 336.85958590794183,
       "declare_through_ref_s": 291.502506,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -1428,6 +1433,7 @@
       "upload_s": 352.51800455648527,
       "declare_through_ref_s": 292.25075,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -2501,6 +2507,7 @@
       "upload_s": 362.0767883040248,
       "declare_through_ref_s": 294.088169,
       "declare_complete": false,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -3574,6 +3581,7 @@
       "upload_s": 3091.499518,
       "declare_through_ref_s": 3091.499518,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 42,
@@ -4710,6 +4718,7 @@
       "upload_s": 3092.258216,
       "declare_through_ref_s": 3092.258216,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 42,
@@ -5846,6 +5855,7 @@
       "upload_s": 3094.08919,
       "declare_through_ref_s": 3094.08919,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 42,
@@ -6982,6 +6992,7 @@
       "upload_s": 4062.8473376094917,
       "declare_through_ref_s": 3093.163104,
       "declare_complete": true,
+      "gaps": [],
       "records": [
         {
           "source_seq": 1,
@@ -9178,5 +9189,6 @@
     "superseded_by_second_run": 5,
     "late_station": "S3",
     "note": "second run's calibration hash for S1/S2 must differ from the first run"
-  }
+  },
+  "analysis": null
 }

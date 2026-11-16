@@ -95,6 +95,12 @@ class StationSpec:
     upload_lag_s: tuple[float, float] = (30.0, 120.0)
     late: bool = False  # uploads only in the late phase
     note: str | None = None
+    # Intervals (reference seconds) in which the recorder is actually on.
+    # ``None`` means always on.  Offline intervals become declared coverage
+    # gaps in the station's progress reports — either with the final wave or,
+    # when ``gaps_late`` is set, only in a separate late progress report.
+    online_windows_s: list[tuple[float, float]] | None = None
+    gaps_late: bool = False
 
     def boot_at(self, reference_s: float) -> Boot:
         chosen = self.boots[0]
@@ -102,6 +108,27 @@ class StationSpec:
             if boot.covers(reference_s) and boot.boot_start_ref_s >= chosen.boot_start_ref_s:
                 chosen = boot
         return chosen
+
+    def online_at(self, reference_s: float) -> bool:
+        if self.online_windows_s is None:
+            return True
+        return any(start <= reference_s <= end for start, end in self.online_windows_s)
+
+    def offline_gaps_s(self, lo_s: float, hi_s: float) -> list[tuple[float, float]]:
+        """Offline intervals of this station clipped to ``[lo_s, hi_s]``."""
+        if self.online_windows_s is None:
+            return []
+        gaps: list[tuple[float, float]] = []
+        cursor = lo_s
+        for start, end in sorted(self.online_windows_s):
+            if end < lo_s or start > hi_s:
+                continue
+            if start > cursor:
+                gaps.append((cursor, min(start, hi_s)))
+            cursor = max(cursor, end)
+        if cursor < hi_s:
+            gaps.append((cursor, hi_s))
+        return [(s, e) for s, e in gaps if e > s]
 
 
 @dataclass
@@ -138,6 +165,9 @@ class Scenario:
     feature_noise: float = 0.015
     closure_margin_s: float = 180.0
     expected: dict = field(default_factory=dict)
+    # Analysis-scenario definitions (regions, habitat, reference composition,
+    # study window) published to the analysis API after the pipeline run.
+    analysis: dict | None = None
 
     def timeline_end_s(self) -> float:
         sound_end = max((e for s in self.sources for e in s.emissions_s), default=600.0)
@@ -159,6 +189,8 @@ def build_scenario(name: str) -> Scenario:
         "collinear": _collinear,
         "duplicates": _duplicates,
         "revision": _revision,
+        "daynight": _daynight,
+        "nightfailure": _nightfailure,
     }
     if name not in builders:
         raise KeyError(f"unknown scenario {name!r}; choose from {sorted(builders)}")
@@ -166,7 +198,8 @@ def build_scenario(name: str) -> Scenario:
 
 
 def scenario_names() -> list[str]:
-    return ["overlapping", "reboot", "collinear", "duplicates", "revision"]
+    return ["overlapping", "reboot", "collinear", "duplicates", "revision",
+            "daynight", "nightfailure"]
 
 
 # --------------------------------------------------------------------------- #
@@ -407,4 +440,259 @@ def _revision() -> Scenario:
             "late_station": "S3",
             "note": "second run's calibration hash for S1/S2 must differ from the first run",
         },
+    )
+
+
+# --------------------------------------------------------------------------- #
+# 6. Day/night biased sampling + overlapping stations + an empty stratum
+# --------------------------------------------------------------------------- #
+ANALYSIS_WINDOW_START_S = 21_600.0   # 2026-11-14 06:00 UTC
+ANALYSIS_WINDOW_END_S = 194_400.0    # 2026-11-16 06:00 UTC
+ANALYSIS_BIN_SECONDS = 43_200        # 12 h bins: day1, night1, day2, night2
+ANALYSIS_NIGHTS_S = [(64_800.0, 108_000.0), (151_200.0, 194_400.0)]
+ANALYSIS_GRID_M = 250.0
+
+
+def _analysis_cal_sources(west_center: tuple[float, float], east_center: tuple[float, float]) -> list[CalSourceSpec]:
+    emissions = [-3600.0 + 1800.0 * i for i in range(115)]  # up to 201600 s
+    return [
+        CalSourceSpec("C1", west_center[0], west_center[1], list(emissions)),
+        CalSourceSpec("C2", east_center[0], east_center[1], list(emissions)),
+    ]
+
+
+def _analysis_sound_times(offsets: list[float]) -> list[float]:
+    out: list[float] = []
+    for bin_start in (21_600.0, 64_800.0, 108_000.0, 151_200.0):
+        out.extend(bin_start + off for off in offsets)
+    return sorted(out)
+
+
+def _habitat_cells() -> list[dict]:
+    """Habitat of every analysis cell in both regions (shared by both scenarios
+    only in the daynight case; nightfailure overrides to a single habitat)."""
+    cells = []
+    for ix in range(8):
+        for iy in range(4, 8):
+            habitat = "reed" if iy in (4, 5) else ("water" if iy == 6 else "mudflat")
+            cells.append({"ix": ix, "iy": iy, "habitat": habitat})
+    return cells
+
+
+def _daynight() -> Scenario:
+    day_only = [
+        (-3_600.0, 64_800.0),
+        (108_000.0, 151_200.0),
+        (194_400.0, 210_000.0),
+    ]
+    always = None
+    stations = [
+        # West block: four stations online around the clock; W1/W3/W4 hearing
+        # ranges overlap heavily on the reed cells.
+        StationSpec("W1", 300.0, 400.0, 450.0, [_boots_standard()], (25.0, 70.0),
+                    online_windows_s=always),
+        StationSpec("W2", 650.0, 400.0, 450.0, [_boots_standard()], (30.0, 80.0),
+                    online_windows_s=always),
+        StationSpec("W3", 500.0, 400.0, 450.0, [_boots_standard()], (35.0, 90.0),
+                    online_windows_s=always),
+        StationSpec("W4", 500.0, 150.0, 450.0, [_boots_standard()], (20.0, 60.0),
+                    online_windows_s=always),
+        # East block: every station shuts down at night (18:00-06:00) and says
+        # so in its progress gaps.
+        StationSpec("E1", 1350.0, 350.0, 400.0, [_boots_standard()], (25.0, 70.0),
+                    online_windows_s=day_only, note="scheduled night shutdown"),
+        StationSpec("E2", 1800.0, 350.0, 400.0, [_boots_standard()], (30.0, 80.0),
+                    online_windows_s=day_only, note="scheduled night shutdown"),
+        StationSpec("E3", 1550.0, 350.0, 400.0, [_boots_standard()], (35.0, 90.0),
+                    online_windows_s=day_only, note="scheduled night shutdown"),
+        StationSpec("E4", 1550.0, 200.0, 400.0, [_boots_standard()], (20.0, 60.0),
+                    online_windows_s=day_only, note="scheduled night shutdown"),
+    ]
+    sources = [
+        SourceSpec("WS1", "chirp", 375.0, 275.0, _analysis_sound_times([7200.0, 14400.0, 21600.0]),
+                   [1.0, 0.30, 0.20, 0.90]),
+        SourceSpec("WS2", "chirp", 625.0, 525.0, _analysis_sound_times([7800.0, 15000.0, 22200.0]),
+                   [0.20, 0.90, 0.80, 0.20]),
+        SourceSpec("ES1", "chirp", 1375.0, 275.0, _analysis_sound_times([7200.0, 14400.0, 21600.0]),
+                   [0.90, 0.25, 0.30, 0.85]),
+        SourceSpec("ES2", "chirp", 1625.0, 525.0, _analysis_sound_times([7800.0, 15000.0, 22200.0]),
+                   [0.25, 0.85, 0.75, 0.30]),
+    ]
+    analysis = {
+        "window": {"start_s": ANALYSIS_WINDOW_START_S, "end_s": ANALYSIS_WINDOW_END_S},
+        "grid_cell_m": ANALYSIS_GRID_M,
+        "bin_seconds": ANALYSIS_BIN_SECONDS,
+        "class_label": "chirp",
+        "regions": [
+            {"id": "west", "name": "West block",
+             "bbox": {"ix_min": 0, "ix_max": 3, "iy_min": 4, "iy_max": 7}},
+            {"id": "east", "name": "East block",
+             "bbox": {"ix_min": 4, "ix_max": 7, "iy_min": 4, "iy_max": 7}},
+        ],
+        "habitat_map": {"id": "hab-daynight", "cells": _habitat_cells()},
+        "reference_composition": {
+            "id": "ref-daynight",
+            "name": "published wetland reference composition",
+            "entries": [
+                {"habitat": "reed", "period_class": "day", "weight": 0.3},
+                {"habitat": "reed", "period_class": "night", "weight": 0.2},
+                {"habitat": "water", "period_class": "day", "weight": 0.2},
+                {"habitat": "water", "period_class": "night", "weight": 0.1},
+                {"habitat": "mudflat", "period_class": "day", "weight": 0.1},
+                {"habitat": "mudflat", "period_class": "night", "weight": 0.1},
+            ],
+        },
+        "region_a_id": "west",
+        "region_b_id": "east",
+        "expected": {
+            # Truth emits 6 day + 6 night calls per source; the east night
+            # calls are never heard because every east station is off.
+            "events_heard": {"west": 24, "east": 12},
+            "naive_difference": 12.0,
+            "common_strata": [["reed", "day"], ["water", "day"]],
+            "incomparable_strata": [
+                ["reed", "night"], ["water", "night"],
+                ["mudflat", "day"], ["mudflat", "night"],
+            ],
+            "empty_strata_standardized": [
+                ["reed", "night"], ["water", "night"],
+                ["mudflat", "day"], ["mudflat", "night"],
+            ],
+            "max_abs_common_difference": 0.002,
+        },
+    }
+    return Scenario(
+        name="daynight",
+        title="Day/night biased sampling with overlapping stations and an empty stratum",
+        description=(
+            "Two blocks with identical true calling rates. West stations listen "
+            "around the clock (and their hearing ranges overlap, so effort must "
+            "not be double-counted); every east station shuts down at night and "
+            "declares the gap. Raw counts say west calls twice as much; the "
+            "comparable sample shows the day rates are equal and the east night "
+            "rate is unknown. The reference composition also names mudflat, "
+            "which no east station can hear: an empty stratum that must be "
+            "disclosed, never zero-filled."
+        ),
+        stations=stations,
+        sources=sources,
+        cal_sources=_analysis_cal_sources((500.0, 400.0), (1550.0, 350.0)),
+        area={"x_min": 0.0, "x_max": 2100.0, "y_min": -1100.0, "y_max": 1100.0},
+        expected={
+            "events": 36,
+            "note": "24 west events (day+night) + 12 east day events; east night calls are lost",
+        },
+        analysis=analysis,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# 7. Night-time recorder failure reported late => report versions
+# --------------------------------------------------------------------------- #
+def _nightfailure() -> Scenario:
+    stations = [
+        # North block: all three recorders fail 18:00-06:00 every night, but
+        # the failure is silent — the stations keep declaring complete uploads.
+        # The gap is only declared later, once field staff notice.
+        StationSpec("N1", 500.0, 400.0, 550.0, [_boots_standard()], (25.0, 70.0),
+                    online_windows_s=None, gaps_late=True,
+                    note="recorder fails at night; gaps declared late"),
+        StationSpec("N2", 550.0, 350.0, 550.0, [_boots_standard()], (30.0, 80.0),
+                    online_windows_s=None, gaps_late=True,
+                    note="recorder fails at night; gaps declared late"),
+        StationSpec("N3", 500.0, 150.0, 550.0, [_boots_standard()], (35.0, 90.0),
+                    online_windows_s=None, gaps_late=True,
+                    note="recorder fails at night; gaps declared late"),
+        # South block: healthy stations, online around the clock.
+        StationSpec("S1", 1500.0, 400.0, 550.0, [_boots_standard()], (25.0, 70.0)),
+        StationSpec("S2", 1550.0, 450.0, 550.0, [_boots_standard()], (30.0, 80.0)),
+        StationSpec("S3", 1500.0, 150.0, 550.0, [_boots_standard()], (35.0, 90.0)),
+    ]
+    # The failure is real: north stations record nothing at night.  What is
+    # late is the *declaration* of that fact, not the records.
+    failing_windows = [
+        (-3_600.0, 64_800.0),
+        (108_000.0, 151_200.0),
+        (194_400.0, 210_000.0),
+    ]
+    for st in stations[:3]:
+        st.online_windows_s = failing_windows
+    sources = [
+        SourceSpec("NS1", "croak", 375.0, 275.0, _analysis_sound_times([7200.0, 14400.0, 21600.0]),
+                   [0.40, 1.00, 0.50, 0.60]),
+        SourceSpec("SS1", "croak", 1375.0, 275.0, _analysis_sound_times([7200.0, 14400.0, 21600.0]),
+                   [0.45, 0.95, 0.55, 0.55]),
+    ]
+    analysis = {
+        "window": {"start_s": ANALYSIS_WINDOW_START_S, "end_s": ANALYSIS_WINDOW_END_S},
+        "grid_cell_m": ANALYSIS_GRID_M,
+        "bin_seconds": ANALYSIS_BIN_SECONDS,
+        "class_label": "croak",
+        "regions": [
+            {"id": "north", "name": "North block",
+             "bbox": {"ix_min": 0, "ix_max": 3, "iy_min": 4, "iy_max": 7}},
+            {"id": "south", "name": "South block",
+             "bbox": {"ix_min": 4, "ix_max": 7, "iy_min": 4, "iy_max": 7}},
+        ],
+        "habitat_map": {
+            "id": "hab-nightfailure",
+            "cells": [
+                {"ix": ix, "iy": iy, "habitat": "reed"}
+                for ix in range(8)
+                for iy in range(4, 8)
+            ],
+        },
+        "reference_composition": {
+            "id": "ref-nightfailure",
+            "name": "reed-only reference composition",
+            "entries": [
+                {"habitat": "reed", "period_class": "day", "weight": 0.5},
+                {"habitat": "reed", "period_class": "night", "weight": 0.5},
+            ],
+        },
+        "region_a_id": "north",
+        "region_b_id": "south",
+        # Progress reports (per station) that arrive only after report v1:
+        # they declare the night-time recorder gaps and force a new cutoff.
+        "late_gap_declarations": [
+            {
+                "station_id": station_id,
+                "boot_id": "b1",
+                "gaps_s": ANALYSIS_NIGHTS_S,
+                "reason": "recorder power fault 18:00-06:00 confirmed by field inspection",
+            }
+            for station_id in ("N1", "N2", "N3")
+        ],
+        "expected": {
+            "events_heard": {"north": 6, "south": 12},
+            # v1 believes the north nights were covered (no gap declared yet):
+            # it scores the north night rate as a false zero.
+            "v1_night_status": "covered",
+            "v1_common_difference_max_abs": -0.003,
+            # v2 (after the late gap reports) marks the north nights unknown.
+            "v2_night_status": "no_coverage",
+            "v2_common_difference_max_abs": 0.002,
+            "v2_empty_strata_standardized": [["reed", "night"]],
+        },
+    }
+    return Scenario(
+        name="nightfailure",
+        title="Night-time recorder failure reported late creates a new report version",
+        description=(
+            "All north recorders die every night at 18:00 and restart at 06:00, "
+            "but keep declaring complete uploads, so report v1 scores the north "
+            "night rate as zero (covered, nothing heard) and the comparison "
+            "looks significant. When field staff later declare the gaps, a new "
+            "report at a new cutoff marks the north nights unknown; the old "
+            "report stays exactly reproducible at its own cutoff."
+        ),
+        stations=stations,
+        sources=sources,
+        cal_sources=_analysis_cal_sources((500.0, 400.0), (1500.0, 300.0)),
+        area={"x_min": 0.0, "x_max": 2100.0, "y_min": -1100.0, "y_max": 1100.0},
+        expected={
+            "events": 18,
+            "note": "6 north day events + 12 south events; north night calls are never recorded",
+        },
+        analysis=analysis,
     )

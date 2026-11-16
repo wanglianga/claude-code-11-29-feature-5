@@ -25,7 +25,10 @@ app = FastAPI(
     description=(
         "Groups records of the same sound heard at several wetland stations into one "
         "event, using per-boot clock calibration, a coarse-to-fine grid search over the "
-        "configured observation area, and an exclusive set-packing solver. "
+        "configured observation area, and an exclusive set-packing solver. On top of the "
+        "event stream it serves comparability reports: activity rates of two regions "
+        "restricted to their comparable sample, with coverage facts, incomparable strata "
+        "and versioned knowledge cutoffs — never a population estimate. "
         "Results are exploratory field-survey output, not an alerting service."
     ),
     lifespan=lifespan,

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Wetland Multi-Station Acoustic Observation Service",
-    "description": "Groups records of the same sound heard at several wetland stations into one event, using per-boot clock calibration, a coarse-to-fine grid search over the configured observation area, and an exclusive set-packing solver. Results are exploratory field-survey output, not an alerting service.",
+    "description": "Groups records of the same sound heard at several wetland stations into one event, using per-boot clock calibration, a coarse-to-fine grid search over the configured observation area, and an exclusive set-packing solver. On top of the event stream it serves comparability reports: activity rates of two regions restricted to their comparable sample, with coverage facts, incomparable strata and versioned knowledge cutoffs \u2014 never a population estimate. Results are exploratory field-survey output, not an alerting service.",
     "version": "1.0.0",
     "x-results-are-exploratory": true
   },
@@ -1616,6 +1616,587 @@
         ]
       }
     },
+    "/analysis/regions": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "List analysis regions",
+        "operationId": "list_analysis_regions_analysis_regions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AnalysisRegionOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Analysis Regions Analysis Regions Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Publish an immutable analysis region (a named set of grid cells)",
+        "operationId": "create_analysis_region_analysis_regions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisRegionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisRegionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/analysis/regions/{region_id}": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Fetch one analysis region",
+        "operationId": "get_analysis_region_analysis_regions__region_id__get",
+        "parameters": [
+          {
+            "name": "region_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Region Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisRegionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/analysis/habitat-maps": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "List habitat maps",
+        "operationId": "list_habitat_maps_analysis_habitat_maps_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HabitatMapOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Habitat Maps Analysis Habitat Maps Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Publish the pre-published habitat class of each grid cell",
+        "operationId": "create_habitat_map_analysis_habitat_maps_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HabitatMapCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HabitatMapOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/analysis/reference-compositions": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "List reference compositions",
+        "operationId": "list_reference_compositions_analysis_reference_compositions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReferenceCompositionOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Reference Compositions Analysis Reference Compositions Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Publish a habitat x period-class reference composition for standardisation",
+        "operationId": "create_reference_composition_analysis_reference_compositions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReferenceCompositionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenceCompositionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/analysis/reports": {
+      "post": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Generate a versioned comparability report frozen at a knowledge cutoff",
+        "operationId": "create_analysis_report_analysis_reports_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisReportCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisReportOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "List comparability reports",
+        "operationId": "list_analysis_reports_analysis_reports_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AnalysisReportSummary"
+                  },
+                  "title": "Response List Analysis Reports Analysis Reports Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/analysis/reports/compare": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Diff two report versions and explain what changed",
+        "description": "Version difference between two cutoffs.\n\nLate shutdown or calibration information produces a new report at a new\ncutoff; this endpoint shows, stratum by stratum, which coverage facts and\nrates changed, and lists the evidence that arrived between the two\ncutoffs.  The baseline report itself stays reproducible.",
+        "operationId": "compare_analysis_reports_analysis_reports_compare_get",
+        "parameters": [
+          {
+            "name": "baseline_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Baseline Id"
+            }
+          },
+          {
+            "name": "current_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Current Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/analysis/reports/{report_id}": {
+      "get": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Fetch a full comparability report",
+        "operationId": "get_analysis_report_analysis_reports__report_id__get",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Report Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisReportOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/analysis/reports/{report_id}/reproduce": {
+      "post": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Re-derive the report at its original cutoff and compare hashes",
+        "description": "Re-derivation check: an old report must be exactly reproducible.\n\nThe computation only reads evidence received at or before the report's\ncutoff, so late shutdown or calibration information cannot change what the\nold report said \u2014 it can only produce a *new* report at a new cutoff.",
+        "operationId": "reproduce_analysis_report_analysis_reports__report_id__reproduce_post",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Report Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReproduceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/analysis/reports/{report_id}/refresh": {
+      "post": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Issue the same report at a new cutoff (late evidence creates a new version)",
+        "operationId": "refresh_analysis_report_analysis_reports__report_id__refresh_post",
+        "parameters": [
+          {
+            "name": "report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Report Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RefreshReportRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisReportOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
     "/stats": {
       "get": {
         "tags": [
@@ -1645,6 +2226,437 @@
   },
   "components": {
     "schemas": {
+      "AnalysisRegionCreate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "grid_cell_size_m": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100000.0,
+                "exclusiveMinimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Cell Size M"
+          },
+          "cells": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cells",
+            "description": "Explicit analysis-grid cells as [ix, iy] pairs"
+          },
+          "bbox": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bbox",
+            "description": "Inclusive cell-index rectangle {ix_min, ix_max, iy_min, iy_max}; expanded to cells"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "AnalysisRegionCreate"
+      },
+      "AnalysisRegionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "grid_cell_size_m": {
+            "type": "number",
+            "title": "Grid Cell Size M"
+          },
+          "cell_count": {
+            "type": "integer",
+            "title": "Cell Count"
+          },
+          "cells": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Cells"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "grid_cell_size_m",
+          "cell_count",
+          "cells",
+          "notes",
+          "created_at"
+        ],
+        "title": "AnalysisRegionOut"
+      },
+      "AnalysisReportCreate": {
+        "properties": {
+          "region_a_id": {
+            "type": "string",
+            "title": "Region A Id"
+          },
+          "region_b_id": {
+            "type": "string",
+            "title": "Region B Id"
+          },
+          "habitat_map_id": {
+            "type": "string",
+            "title": "Habitat Map Id"
+          },
+          "reference_composition_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Composition Id"
+          },
+          "class_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class Label"
+          },
+          "window": {
+            "$ref": "#/components/schemas/AnalysisWindow"
+          },
+          "grid_cell_size_m": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100000.0,
+                "exclusiveMinimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Cell Size M"
+          },
+          "bin_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 31536000.0,
+                "minimum": 60.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bin Seconds"
+          },
+          "day_start_hour": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 23.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Start Hour"
+          },
+          "night_start_hour": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 23.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Night Start Hour"
+          },
+          "methods": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "common_coverage",
+                    "standardized"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Methods"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of",
+            "description": "Knowledge cutoff (UTC). Only information received at or before this instant enters the report; default is now."
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "region_a_id",
+          "region_b_id",
+          "habitat_map_id",
+          "window"
+        ],
+        "title": "AnalysisReportCreate"
+      },
+      "AnalysisReportOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "report_hash": {
+            "type": "string",
+            "title": "Report Hash"
+          },
+          "inputs_hash": {
+            "type": "string",
+            "title": "Inputs Hash"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "supersedes_report_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Report Id"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "result": {
+            "type": "object",
+            "title": "Result"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "as_of",
+          "report_hash",
+          "inputs_hash",
+          "status",
+          "supersedes_report_id",
+          "created_by",
+          "created_at",
+          "result"
+        ],
+        "title": "AnalysisReportOut"
+      },
+      "AnalysisReportSummary": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "report_hash": {
+            "type": "string",
+            "title": "Report Hash"
+          },
+          "inputs_hash": {
+            "type": "string",
+            "title": "Inputs Hash"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "supersedes_report_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Report Id"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "config": {
+            "type": "object",
+            "title": "Config"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "as_of",
+          "report_hash",
+          "inputs_hash",
+          "status",
+          "supersedes_report_id",
+          "created_by",
+          "created_at",
+          "config"
+        ],
+        "title": "AnalysisReportSummary"
+      },
+      "AnalysisWindow": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "AnalysisWindow"
+      },
       "BatchResponse": {
         "properties": {
           "batch_id": {
@@ -2735,6 +3747,131 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HabitatCell": {
+        "properties": {
+          "ix": {
+            "type": "integer",
+            "title": "Ix"
+          },
+          "iy": {
+            "type": "integer",
+            "title": "Iy"
+          },
+          "habitat": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Habitat"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ix",
+          "iy",
+          "habitat"
+        ],
+        "title": "HabitatCell"
+      },
+      "HabitatMapCreate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "grid_cell_size_m": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100000.0,
+                "exclusiveMinimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Cell Size M"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/HabitatCell"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Cells"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "cells"
+        ],
+        "title": "HabitatMapCreate"
+      },
+      "HabitatMapOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "grid_cell_size_m": {
+            "type": "number",
+            "title": "Grid Cell Size M"
+          },
+          "cell_count": {
+            "type": "integer",
+            "title": "Cell Count"
+          },
+          "cells": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Cells"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "grid_cell_size_m",
+          "cell_count",
+          "cells",
+          "created_at"
+        ],
+        "title": "HabitatMapOut"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -3145,6 +4282,154 @@
         ],
         "title": "ProgressUpload"
       },
+      "ReferenceCompositionCreate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceCompositionEntry"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Entries"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "entries"
+        ],
+        "title": "ReferenceCompositionCreate"
+      },
+      "ReferenceCompositionEntry": {
+        "properties": {
+          "habitat": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Habitat"
+          },
+          "period_class": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Period Class"
+          },
+          "weight": {
+            "type": "number",
+            "maximum": 1000000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Weight"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "habitat",
+          "period_class",
+          "weight"
+        ],
+        "title": "ReferenceCompositionEntry"
+      },
+      "ReferenceCompositionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "entries": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "entries",
+          "notes",
+          "created_at"
+        ],
+        "title": "ReferenceCompositionOut"
+      },
+      "RefreshReportRequest": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of",
+            "description": "New knowledge cutoff (UTC); default is now. Must be later than the superseded report's cutoff."
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RefreshReportRequest"
+      },
       "RegionOut": {
         "properties": {
           "region_id": {
@@ -3192,6 +4477,44 @@
           "representative"
         ],
         "title": "RegionOut"
+      },
+      "ReproduceResponse": {
+        "properties": {
+          "report_id": {
+            "type": "integer",
+            "title": "Report Id"
+          },
+          "reproducible": {
+            "type": "boolean",
+            "title": "Reproducible"
+          },
+          "report_hash": {
+            "type": "string",
+            "title": "Report Hash"
+          },
+          "recomputed_hash": {
+            "type": "string",
+            "title": "Recomputed Hash"
+          },
+          "as_of": {
+            "type": "string",
+            "title": "As Of"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "report_id",
+          "reproducible",
+          "report_hash",
+          "recomputed_hash",
+          "as_of",
+          "note"
+        ],
+        "title": "ReproduceResponse"
       },
       "RunOption": {
         "properties": {

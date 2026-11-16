@@ -33,5 +33,19 @@
     "truth_events": 5,
     "waves": 7,
     "records": 340
+  },
+  "daynight": {
+    "title": "Day/night biased sampling with overlapping stations and an empty stratum",
+    "stations": 8,
+    "truth_events": 48,
+    "waves": 16,
+    "records": 874
+  },
+  "nightfailure": {
+    "title": "Night-time recorder failure reported late creates a new report version",
+    "stations": 6,
+    "truth_events": 24,
+    "waves": 12,
+    "records": 606
   }
 }
